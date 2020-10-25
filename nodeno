@@ -1,0 +1,4 @@
+#!/bin/bash
+esbuild --bundle --outfile=./src/nodeno.js --format=iife --platform=node ./src/deno.ts --external:internal/event_target
+node concat.js
+node --expose-internals --trace-uncaught deno

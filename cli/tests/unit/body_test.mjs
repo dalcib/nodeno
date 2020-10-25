@@ -1,0 +1,73 @@
+import {assert, assertEquals, unitTest} from "./test_util.mjs";
+function buildBody(body, headers) {
+  const stub = new Request("http://foo/", {
+    body,
+    headers
+  });
+  return stub;
+}
+const intArrays = [
+  Int8Array,
+  Int16Array,
+  Int32Array,
+  Uint8Array,
+  Uint16Array,
+  Uint32Array,
+  Uint8ClampedArray,
+  Float32Array,
+  Float64Array
+];
+unitTest(async function arrayBufferFromByteArrays() {
+  const buffer = new TextEncoder().encode("ahoyhoy8").buffer;
+  for (const type of intArrays) {
+    const body = buildBody(new type(buffer));
+    const text = new TextDecoder("utf-8").decode(await body.arrayBuffer());
+    assertEquals(text, "ahoyhoy8");
+  }
+});
+unitTest({perms: {net: true}}, async function bodyMultipartFormData() {
+  const response = await fetch("http://localhost:4545/multipart_form_data.txt");
+  assert(response.body instanceof ReadableStream);
+  const text = await response.text();
+  const body = buildBody(text, response.headers);
+  const formData = await body.formData();
+  assert(formData.has("field_1"));
+  assertEquals(formData.get("field_1").toString(), "value_1 \r\n");
+  assert(formData.has("field_2"));
+});
+unitTest({perms: {net: true}}, async function bodyURLEncodedFormData() {
+  const response = await fetch("http://localhost:4545/cli/tests/subdir/form_urlencoded.txt");
+  assert(response.body instanceof ReadableStream);
+  const text = await response.text();
+  const body = buildBody(text, response.headers);
+  const formData = await body.formData();
+  assert(formData.has("field_1"));
+  assertEquals(formData.get("field_1").toString(), "Hi");
+  assert(formData.has("field_2"));
+  assertEquals(formData.get("field_2").toString(), "<Deno>");
+});
+unitTest({perms: {}}, async function bodyURLSearchParams() {
+  const body = buildBody(new URLSearchParams({hello: "world"}));
+  const text = await body.text();
+  assertEquals(text, "hello=world");
+});
+unitTest(async function bodyArrayBufferMultipleParts() {
+  const parts = [];
+  let size = 0;
+  for (let i = 0; i <= 15e4; i++) {
+    const part = new Uint8Array([1]);
+    parts.push(part);
+    size += part.length;
+  }
+  let offset = 0;
+  const stream = new ReadableStream({
+    pull(controller) {
+      const chunk = parts[offset++];
+      if (!chunk)
+        return controller.close();
+      controller.enqueue(chunk);
+    }
+  });
+  const body = buildBody(stream);
+  assertEquals((await body.arrayBuffer()).byteLength, size);
+});
