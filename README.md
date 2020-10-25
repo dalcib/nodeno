@@ -49,7 +49,7 @@ const opsCache = {
 
 ```javascript
 //index.js
-import ('./denode.js')
+import ('./deno.js')
 
 console.log(Deno.cwd)
 
